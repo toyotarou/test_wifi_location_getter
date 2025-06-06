@@ -12,11 +12,24 @@ import java.time.format.DateTimeFormatter
 import com.example.test_wifi_location_getter.Coordinate
 import com.example.test_wifi_location_getter.CoordinatePushApi
 
+
+import android.net.wifi.WifiManager
+import android.content.pm.PackageManager
+import android.net.wifi.ScanResult
+import com.google.android.gms.location.*
+import android.content.Context
+
+
 class WifiLocationService : Service() {
 
     private val handler = Handler(Looper.getMainLooper())
     private val NOTIF_ID = 1
     private val CHANNEL_ID = "wifi_location"
+
+
+    private lateinit var wifiManager: WifiManager
+    private lateinit var fused: FusedLocationProviderClient
+
 
     ///
     companion object {
@@ -27,6 +40,15 @@ class WifiLocationService : Service() {
     ///
     override fun onCreate() {
         super.onCreate()
+
+
+
+        wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+
+        fused = LocationServices.getFusedLocationProviderClient(this)
+
+
+
         createChannel()
         startForeground(NOTIF_ID, buildNotif("Scanning…"))
         handler.post(scanTask)
@@ -49,7 +71,9 @@ class WifiLocationService : Service() {
     ///
     private val scanTask = object : Runnable {
         override fun run() {
-            sendDummy()
+//            sendDummy()
+            sendReal()
+
             handler.postDelayed(this, 60_000)
         }
     }
@@ -68,6 +92,33 @@ class WifiLocationService : Service() {
         )
 
         coordinateApi?.onCoordinate(coord) {}
+    }
+
+    ///
+    private fun sendReal() {
+        if (checkSelfPermission(android.Manifest.permission.NEARBY_WIFI_DEVICES)
+            != PackageManager.PERMISSION_GRANTED
+        ) return
+
+        wifiManager.startScan()
+
+        val results: List<ScanResult> = wifiManager.scanResults
+
+        val best = results.maxByOrNull { it.level } ?: return
+
+        fused.lastLocation.addOnSuccessListener { loc ->
+            if (loc == null) return@addOnSuccessListener
+            val now = LocalDateTime.now()
+            val coord = Coordinate(
+                lat = loc.latitude,
+                lng = loc.longitude,
+                ssid = best.SSID ?: "(unknown)",
+                epochMillis = System.currentTimeMillis(),
+                date = now.toLocalDate().toString(),
+                time = now.toLocalTime().format(DateTimeFormatter.ISO_LOCAL_TIME)
+            )
+            coordinateApi?.onCoordinate(coord) {}
+        }
     }
 
     ///

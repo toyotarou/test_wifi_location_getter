@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -75,15 +76,38 @@ class _HomePageState extends State<HomePage> {
     _requestPermissions();
   }
 
+  // ///
+  // Future<void> _requestPermissions() async {
+  //   await Permission.location.request();
+  //   if (await Permission.location.isDenied) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('位置情報の許可が必要です')));
+  //     }
+  //   }
+  // }
+
   ///
   Future<void> _requestPermissions() async {
-    await Permission.location.request();
-    if (await Permission.location.isDenied) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('位置情報の許可が必要です')));
+    final loc = await Permission.location.request();
+
+    if (!loc.isGranted) {
+      _show('位置情報が許可されていません');
+
+      return;
+    }
+
+    // ignore: use_build_context_synchronously
+    if (await Permission.location.isGranted && Theme.of(context).platform == TargetPlatform.android) {
+      final info = await DeviceInfoPlugin().androidInfo;
+
+      if (info.version.sdkInt >= 33) {
+        _show('Wi-Fi スキャン許可が必要です。設定→アプリ→権限で「付近のデバイス」を許可してください');
       }
     }
   }
+
+  ///
+  void _show(String msg) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
   ///
   Future<void> _toggleService() async {
